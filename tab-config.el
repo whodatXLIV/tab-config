@@ -955,5 +955,5 @@ at the mouse-down event to the position at mouse-up event."
         (force-mode-line-update))
       (kill-buffer command-buffer)
       (switch-to-buffer current-buffer))))
-)
+
 (provide 'tab-config)

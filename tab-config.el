@@ -273,7 +273,7 @@
     major-mode))
 
 (defvar tab2-white-list-modes
-  '(text-mode lisp-interaction-mode messages-buffer-mode vterm-mode special-mode)
+  '(text-mode lisp-interaction-mode messages-buffer-mode vterm-mode special-mode fundamental-mode)
   "List of modes that will be tracked even if the buffer is not a file")
 
 (defvar tab2-white-list-buffer-names
@@ -505,6 +505,7 @@ at the mouse-down event to the position at mouse-up event."
 (defun tab2-format-tab (tab tabs)
   "Override for  `tab-line-tab-name-format-function' that adds on a modified buffer face and indicator"
   (let* ((buffer (tab2-get-buffer-from-tab tab))
+         (group-view (window-parameter nil 'tab-line-groups))
          (selected-p (if buffer
                          (eq buffer (window-buffer))
                        (cdr (assq 'selected tab))))
@@ -512,13 +513,18 @@ at the mouse-down event to the position at mouse-up event."
          (name (if buffer
                    (funcall tab-line-tab-name-function buffer tabs)
                  (cdr (assq 'name tab))))
+         (hasMembers (tab2-filter-buffers-by-group (funcall tab-line-tabs-buffer-list-function) (string-replace " " "" name))) ;; if tabs have members
+         (hasMembers (if (equal "Views" (string-replace " " "" name)) t hasMembers)) ;; or tabs is views
+         ;; TODO add in the views sub tabs
          (face (if selected-p
                    ;;                  (if (mode-line-window-selected-p)
                    'tab-line-tab-current
                  ;;                  'tab-line-tab)
-                 'tab-line-tab-inactive))
-	     (group-view (window-parameter nil 'tab-line-groups)))
-
+                 (if (or hasMembers (not group-view))
+                     'tab-line-tab-inactive
+                   'tab-line
+                   )))
+         )
     ;; the face funcs expect to get called with whether the tab is a buffer
     ;; so we can't use buffer directly here
     (dolist (fn tab-line-tab-face-functions)
@@ -539,7 +545,7 @@ at the mouse-down event to the position at mouse-up event."
 	        (cond ((and buffer (buffer-modified-p buffer) (buffer-file-name buffer))
 		           (if selected-p
 		               (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red2" :height .9 :slant normal ))
-		             (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :height .9 :slant normal ))))
+		             (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red10" :height .9 :slant normal ))))
 
 		          ((and buffer (buffer-file-name buffer)
 			            (string= (tab2-git-state buffer) "edited"))
@@ -636,8 +642,8 @@ at the mouse-down event to the position at mouse-up event."
 	      ((equal curgroup "Project")
 	       (seq-filter (lambda (b) (member b project-buffers)) buffers))
 
-	      ((equal curgroup "Modified")
-	       (seq-filter (lambda (b) (tab2-buffer-modified-file-p b)) buffers))
+	      ;; ((equal curgroup "Modified")
+	      ;;  (seq-filter (lambda (b) (tab2-buffer-modified-file-p b)) buffers))
 
 	      (t (seq-filter (lambda (b)
 			               (equal (tab-line-tabs-buffer-group-name b) curgroup))
@@ -678,13 +684,15 @@ at the mouse-down event to the position at mouse-up event."
 
       ;;insert a Files and Project group
       (append
-       (when (project-current nil)
-	     (list (tab2-make-group-tab selected-group "Project")))
+       ;; (when (project-current nil)
+	     ;; (list (tab2-make-group-tab selected-group "Project")))
+       (list (tab2-make-group-tab selected-group "Project"))
        (list (tab2-make-group-tab selected-group "Files"))
        ;; Insert a modified group if any files are modified
 
-       (when (find-first 'tab2-buffer-modified-file-p buffers)
-	     (list (tab2-make-group-tab selected-group "Modified")))
+       ;; (when (find-first 'tab2-buffer-modified-file-p buffers)
+	   ;;   (list (tab2-make-group-tab selected-group "Modified")))
+       ;; TODO add in Misc. (or something) for all other file type that aren't txt etc. 
        tabs
        (list (tab2-make-view-category-tab
 	          (tab2-view-name (tab2-get-current-view)) "Views")))))

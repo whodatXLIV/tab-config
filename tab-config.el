@@ -36,8 +36,6 @@
 ;;
 ;;; Code:
 
-
-
 ;; Always suppress the tab line separator in both windows and term mode
 (setq tab-line-separator " ")
 
@@ -639,8 +637,8 @@ at the mouse-down event to the position at mouse-up event."
 	      ((equal curgroup "Files")
 	       (seq-filter (lambda (b) (buffer-file-name b)) buffers))
 
-	      ((equal curgroup "Project")
-	       (seq-filter (lambda (b) (member b project-buffers)) buffers))
+	      ;; ((equal curgroup "Project")
+	      ;;  (seq-filter (lambda (b) (member b project-buffers)) buffers))
 
 	      ;; ((equal curgroup "Modified")
 	      ;;  (seq-filter (lambda (b) (tab2-buffer-modified-file-p b)) buffers))
@@ -686,7 +684,7 @@ at the mouse-down event to the position at mouse-up event."
       (append
        ;; (when (project-current nil)
 	     ;; (list (tab2-make-group-tab selected-group "Project")))
-       (list (tab2-make-group-tab selected-group "Project"))
+       ;; (list (tab2-make-group-tab selected-group "Project"))
        (list (tab2-make-group-tab selected-group "Files"))
        ;; Insert a modified group if any files are modified
 
@@ -732,7 +730,7 @@ at the mouse-down event to the position at mouse-up event."
 	          (and selected-group
 		           valid
 		           (not (equal bufgroup selected-group))
-		           (not (and filep (equal selected-group "Project") (project-current nil)))
+		           ;; (not (and filep (equal selected-group "Project") (project-current nil)))
 		           (not (and filep (equal selected-group "Files")))))
 
       (set-window-parameter nil 'tab-line-group bufgroup))))

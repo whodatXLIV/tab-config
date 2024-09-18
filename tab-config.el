@@ -271,7 +271,7 @@
     major-mode))
 
 (defvar tab2-white-list-modes
-  '(text-mode lisp-interaction-mode messages-buffer-mode vterm-mode special-mode fundamental-mode)
+  '(text-mode lisp-interaction-mode)
   "List of modes that will be tracked even if the buffer is not a file")
 
 (defvar tab2-white-list-buffer-names
@@ -542,8 +542,8 @@ at the mouse-down event to the position at mouse-up event."
 	        ;; Modified marker - TODO - move to custom faces
 	        (cond ((and buffer (buffer-modified-p buffer) (buffer-file-name buffer))
 		           (if selected-p
-		               (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red2" :height .9 :slant normal ))
-		             (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red10" :height .9 :slant normal ))))
+		               (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red" :height .9 :slant normal ))
+		             (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red" :height .9 :slant normal ))))
 
 		          ((and buffer (buffer-file-name buffer)
 			            (string= (tab2-git-state buffer) "edited"))

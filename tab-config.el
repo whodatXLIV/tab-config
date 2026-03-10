@@ -491,11 +491,25 @@ at the mouse-down event to the position at mouse-up event."
 
 (my-ignore (advice-remove 'tab-line-format nil))
 
-;; Convenience wrapper for getting the git state which needs to be done in buffer
-;; but is  more accurate than vc-state
+;; Convenience wrapper for getting the git state.
+;; We prioritize parsing the existing `vc-mode` string which is "free"
+;; as Emacs updates it in the background on save/load.
 (defun tab2-git-state (buffer)
   (with-current-buffer buffer
-    (vc-git-state (buffer-file-name buffer))))
+    (let ((fname (buffer-file-name buffer)))
+      (cond
+       ;; Parse the existing vc-mode string (e.g., " Git-main" or " Git:main")
+       ((and vc-mode (string-match "Git\\([:-]\\)" vc-mode))
+        (if (string-equal (match-string 1 vc-mode) "-") "edited" "up-to-date"))
+       ;; Fallback for local buffers: use the standard vc-state (cached by Emacs)
+       ((and fname (not (file-remote-p fname)))
+        (let ((state (vc-state fname)))
+          (cond ((memq state '(edited modified conflict user-diff)) "edited")
+                ((eq state 'up-to-date) "up-to-date")
+                ((null state) nil)
+                (t (symbol-name state)))))
+       ;; For remote buffers where vc-mode is not yet set, don't force a sync check
+       (t nil)))))
 
 ;; Custom tab-line-name-format function to add on a face for the modified signifier
 ;; so it can be colored or not depending on being selected
@@ -539,19 +553,18 @@ at the mouse-down event to the position at mouse-up event."
                         ;; Don't turn mouse-1 into mouse-2 (bug#49247)
                         'follow-link 'ignore)
 
-	        ;; Modified marker - TODO - move to custom faces
-	        (cond ((and buffer (buffer-modified-p buffer) (buffer-file-name buffer))
-		           (if selected-p
-		               (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red" :height .9 :slant normal ))
-		             (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red" :height .9 :slant normal ))))
+	        ;; Modified marker - Unsaves buffer changes
+	        (if (and buffer (buffer-modified-p buffer) (buffer-file-name buffer))
+		        (propertize (format "%s " tab2-modified-marker) 'face `(:inherit ,face :foreground "red" :height .9 :slant normal ))
+              "")
 
-		          ((and buffer (buffer-file-name buffer)
-			            (string= (tab2-git-state buffer) "edited"))
-		           (progn
-                     ;;		     (message "git modified: %s %s" buffer (vc-state (buffer-file-name buffer)))
-		             (if selected-p
-			             (propertize (format "%s " tab2-git-modified-marker) 'face `(:inherit ,face :foreground "dark cyan" :height .9 :slant normal ))
-		               (propertize (format "%s " tab2-git-modified-marker) 'face `(:inherit ,face :height .9 :slant normal ))))))
+            ;; Git status marker - Buffer matches file but file differs from Git
+            (if (and buffer (buffer-file-name buffer)
+			         (string= (tab2-git-state buffer) "edited"))
+		        (if selected-p
+			        (propertize (format "%s " tab2-git-modified-marker) 'face `(:inherit ,face :foreground "dark cyan" :height .9 :slant normal ))
+		          (propertize (format "%s " tab2-git-modified-marker) 'face `(:inherit ,face :height .9 :slant normal )))
+              "")
 
             (let ((close (or (and (or buffer (assq 'close tab))
                                   tab-line-close-button-show
@@ -632,20 +645,20 @@ at the mouse-down event to the position at mouse-up event."
 ;; if Files then return all of the file based buffers.
 ;; if Project then return all files in the curent project.
 (defun  tab2-filter-buffers-by-group (buffers curgroup)
-  (let ((project-buffers (tab2-get-project-buffer-list)))
-    (cond ((not curgroup) buffers)
-	      ((equal curgroup "Files")
-	       (seq-filter (lambda (b) (buffer-file-name b)) buffers))
+  (cond ((not curgroup) buffers)
+        ((equal curgroup "Files")
+         (seq-filter (lambda (b) (buffer-file-name b)) buffers))
 
-	      ;; ((equal curgroup "Project")
-	      ;;  (seq-filter (lambda (b) (member b project-buffers)) buffers))
+        ((equal curgroup "Project")
+         (let ((project-buffers (tab2-get-project-buffer-list)))
+           (seq-filter (lambda (b) (member b project-buffers)) buffers)))
 
-	      ;; ((equal curgroup "Modified")
-	      ;;  (seq-filter (lambda (b) (tab2-buffer-modified-file-p b)) buffers))
+        ((equal curgroup "Modified")
+         (seq-filter (lambda (b) (tab2-buffer-modified-file-p b)) buffers))
 
-	      (t (seq-filter (lambda (b)
-			               (equal (tab-line-tabs-buffer-group-name b) curgroup))
-			             buffers)))))
+        (t (seq-filter (lambda (b)
+                         (equal (tab-line-tabs-buffer-group-name b) curgroup))
+                       buffers))))
 
 (defun find-first (fn ls)
   (cond ((null ls) nil)
@@ -719,10 +732,12 @@ at the mouse-down event to the position at mouse-up event."
 ;; set - switch the selected group to match it.
 ;; TODO: make configurable?
 (defun tab2-auto-track-selected-window (&optional _frame)
-  (let ((bufgroup (tab-line-tabs-buffer-group-name (current-buffer)))
-	    (filep (buffer-file-name (current-buffer)))
-	    (valid (tab2-buffer-filter (current-buffer)))
-	    (selected-group (window-parameter nil 'tab-line-group)))
+  (let* ((filep (buffer-file-name (current-buffer)))
+         (remotep (and filep (file-remote-p filep)))
+         (selected-group (window-parameter nil 'tab-line-group))
+	     (valid (tab2-buffer-filter (current-buffer)))
+         (bufgroup (when (and valid (not (and remotep (equal selected-group "Files"))))
+                     (tab-line-tabs-buffer-group-name (current-buffer)))))
 
     ;;    (message "autotrack: %s %s %s %s" bufgroup filep valid selected-group)
 

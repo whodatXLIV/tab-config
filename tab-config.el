@@ -90,7 +90,9 @@
 (defvar tab2-modified-marker "⏺")
 
 ;; git modified markers - I'm still looking for a better one to display in terminal mode
-(defvar tab2-git-modified-marker (if window-system "" "◨"))
+(defvar tab2-git-modified-marker (if (and (fboundp 'nerd-icons-faicon) window-system) 
+                                     (nerd-icons-faicon "nf-fa-git") 
+                                   "±"))
 
 ;; Space the tabs out a bit
 (defun tab2-space-tab-name (buffer &optional _buffers)
@@ -496,19 +498,27 @@ at the mouse-down event to the position at mouse-up event."
 ;; as Emacs updates it in the background on save/load.
 (defun tab2-git-state (buffer)
   (with-current-buffer buffer
-    (let ((fname (buffer-file-name buffer)))
+    (let* ((fname (buffer-file-name buffer))
+           (state-str (when (stringp vc-mode) vc-mode))
+           ;; Check the internal VC cache first. This is fast and works for remote buffers
+           ;; if Emacs has already fetched the state.
+           (cached (when fname (vc-file-getprop fname 'vc-state))))
       (cond
-       ;; Parse the existing vc-mode string (e.g., " Git-main" or " Git:main")
-       ((and vc-mode (string-match "Git\\([:-]\\)" vc-mode))
-        (if (string-equal (match-string 1 vc-mode) "-") "edited" "up-to-date"))
-       ;; Fallback for local buffers: use the standard vc-state (cached by Emacs)
+       ;; Priority 1: Check internal VC cache (reliable if already fetched)
+       ((memq cached '(edited modified conflict user-diff)) "edited")
+       ((eq cached 'up-to-date) "up-to-date")
+
+       ;; Priority 2: Parse modeline string (fallback for remote buffers)
+       ;; Emacs uses '-' for modified and ':' for up-to-date in VC mode.
+       ((and state-str (string-match "Git\\([:-]\\)" state-str))
+        (if (string-equal (match-string 1 state-str) "-") "edited" "up-to-date"))
+
+       ;; Priority 3: Fallback for local files only (safe to call sync vc-state)
        ((and fname (not (file-remote-p fname)))
         (let ((state (vc-state fname)))
           (cond ((memq state '(edited modified conflict user-diff)) "edited")
                 ((eq state 'up-to-date) "up-to-date")
-                ((null state) nil)
-                (t (symbol-name state)))))
-       ;; For remote buffers where vc-mode is not yet set, don't force a sync check
+                (t (and state (symbol-name state))))))
        (t nil)))))
 
 ;; Custom tab-line-name-format function to add on a face for the modified signifier
